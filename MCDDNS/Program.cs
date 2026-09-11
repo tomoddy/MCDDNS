@@ -15,27 +15,19 @@ public static class Program
     private const string DefaultSecretsPath = "/etc/ansible-secrets/cloudflare-ddns-mc.json";
 
     /// <summary>
-    /// Default value for --semaphore-config-path, used when that argument isn't given.
-    /// </summary>
-    private const string DefaultSemaphoreConfigPath = "/etc/semaphore/config.json";
-
-    /// <summary>
     /// Default value for --ip-lookup-url, used when that argument isn't given.
     /// </summary>
     private const string DefaultIpLookupUrl = "https://api.ipify.org?format=json";
 
     /// <summary>
-    /// Runs the DDNS check/update. Accepts optional --secrets-path=, --semaphore-config-path= and --ip-lookup-url= arguments, each falling back to its default if not given. Returns 0 on success (whether or not an update was needed), 1 on any failure.
+    /// Runs the DDNS check/update. Accepts optional --secrets-path= and --ip-lookup-url= arguments, each falling back to its default if not given. Returns 0 on success (whether or not an update was needed), 1 on any failure. Failure alerting is handled by Semaphore itself, not by this app.
     /// </summary>
     public static async Task<int> Main(string[] args)
     {
         // Parse command-line arguments, falling back to defaults if not given.
         string secretsPath = GetArg(args, "--secrets-path", DefaultSecretsPath);
-        string semaphoreConfigPath = GetArg(args, "--semaphore-config-path", DefaultSemaphoreConfigPath);
         string ipLookupUrl = GetArg(args, "--ip-lookup-url", DefaultIpLookupUrl);
 
-        // Initialize the Telegram notifier, which will send messages about changes or errors.
-        TelegramNotifier telegram = new(semaphoreConfigPath);
         try
         {
             // Load the secrets file, which contains the Cloudflare API token and the DNS record details.
@@ -69,21 +61,17 @@ public static class Program
                 return 0;
             }
 
-            // Otherwise, update the A record to point to the current public IP, log the change, and send a notification via Telegram.
+            // Otherwise, update the A record to point to the current public IP and log the change.
             string oldIp = record.Content;
             await cloudflare.UpdateRecordIpAsync(zoneId, record, currentIp);
 
-            // Log the change and send a notification via Telegram, including the old and new IP addresses.
-            string message = $"CHANGED: {secrets.RecordName} updated {oldIp} -> {currentIp}";
-            Console.WriteLine(message);
-            await telegram.SendAsync($"\U0001F3D0 Minecraft DDNS: {message}");
+            Console.WriteLine($"CHANGED: {secrets.RecordName} updated {oldIp} -> {currentIp}");
             return 0;
         }
         catch (Exception ex)
         {
-            // Log the error to the console and send a notification via Telegram, including the exception message.
+            // Log the error to the console. Semaphore's own failure alerting picks this up via the Ansible task's failed_when.
             Console.Error.WriteLine($"ERROR: {ex.Message}");
-            await telegram.SendAsync($"⚠️ Minecraft DDNS failed: {ex.Message}");
             return 1;
         }
     }

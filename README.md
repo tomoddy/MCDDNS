@@ -9,14 +9,16 @@ meant to be run on a schedule (cron, systemd timer, etc.).
 ## Usage
 
 ```
-mc-ddns [--secrets-path=<path>] [--semaphore-config-path=<path>] [--ip-lookup-url=<url>]
+mc-ddns [--secrets-path=<path>] [--ip-lookup-url=<url>]
 ```
 
 All arguments are optional. Defaults: `/etc/ansible-secrets/cloudflare-ddns-mc.json`,
-`/etc/semaphore/config.json`, `https://api.ipify.org?format=json`.
+`https://api.ipify.org?format=json`.
 
 Exits `0` on success (whether or not an update was needed), `1` on failure
-with an error on stderr.
+with an error on stderr. No alerting is built in — wire failure
+notifications up in whatever runs this on a schedule instead (e.g. via
+your scheduler's own failure handling).
 
 ## Secrets file (`--secrets-path`)
 
@@ -30,11 +32,6 @@ with an error on stderr.
 
 Token needs **Zone → DNS → Edit** on the target zone only. Zone/record are
 looked up by name each run, not hardcoded IDs.
-
-## Telegram alerts (`--semaphore-config-path`)
-
-Optional JSON file with `telegram_token` and `telegram_chat` fields. Sent
-on record change or on failure. Missing file = alerting silently skipped.
 
 ## Building
 
